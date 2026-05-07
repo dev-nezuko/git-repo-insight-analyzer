@@ -1,0 +1,25 @@
+# Codebase Investigator (MERN MVP)
+
+MERN-style investigator that:
+- imports a public GitHub repository,
+- answers plain-English code questions with file/line citations,
+- runs an independent audit on each non-trivial answer,
+- tracks turn-to-turn stance changes to keep long investigations coherent.
+
+## Run
+
+1. Copy `.env.example` to `.env`.
+2. Install deps:
+   - `npm install`
+3. Start app:
+   - `npm run dev`
+
+Backend: `http://localhost:4000`  
+Frontend: `http://localhost:5173`
+
+## API
+
+- `POST /api/repos/import` `{ "githubUrl": "https://github.com/owner/repo" }`
+- `POST /api/chat/sessions` `{ "repoId": "<id>" }`
+- `POST /api/chat/:sessionId/ask` `{ "question": "How does auth work?" }`
+- `GET /api/chat/:sessionId/history`
