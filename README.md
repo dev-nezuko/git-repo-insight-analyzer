@@ -21,7 +21,7 @@ Production build: `npm run build` — compiles **`server/dist`** (API) and **`cl
 
 ## Deploy on Render
 
-Web Service from this repo root: build `npm install --include=dev && node scripts/productionBuild.mjs`, start `node server/dist/index.js`, health check `GET /health`. Set environment variables from [`.env.example`](.env.example) (`MONGODB_URI`, optional OpenAI/AWS). Same-origin **`/api/...`** in production (omit `VITE_API_URL`).
+Web Service from this repo root: `npm install --include=dev && npm run build` (or **`npm run build:render`** if your dashboard already uses that), start `node server/dist/index.js`, health check `GET /health`. Set environment variables from [`.env.example`](.env.example) (`MONGODB_URI`, optional OpenAI/AWS). Same-origin **`/api/...`** in production (omit `VITE_API_URL`).
 
 ## API
 

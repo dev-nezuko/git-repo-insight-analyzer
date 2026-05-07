@@ -6,7 +6,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    # Explicit build keeps Blueprint working even without a npm "build:render" script name.
+    # `npm run build:render` is also supported (same as build) for dashboards that still use that script name.
     buildCommand: npm install --include=dev && node scripts/productionBuild.mjs
     startCommand: node server/dist/index.js
     healthCheckPath: /health

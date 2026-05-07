@@ -18,6 +18,7 @@
     "dev:server": "npm run dev --workspace server",
     "dev:client": "npm run dev --workspace client",
     "build": "node scripts/productionBuild.mjs",
+    "build:render": "npm run build",
     "test": "npm run test --workspace server"
   },
   "devDependencies": {
