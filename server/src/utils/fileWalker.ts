@@ -47,10 +47,7 @@ const DOTFILES_ALLOW = new Set([
   ".prettierignore",
   ".eslintrc",
   ".eslintignore",
-  ".env",
   ".env.example",
-  ".env.local",
-  ".npmrc",
   ".nvmrc",
   ".node-version",
   ".browserslistrc",
@@ -73,6 +70,7 @@ const EXTENSIONLESS_ALLOW = new Set([
 
 function isAllowedFile(entryName: string): boolean {
   const base = entryName.toLowerCase();
+  if ((base === ".env" || base.startsWith(".env.")) && base !== ".env.example") return false;
   if (SKIP_FILES.has(base)) {
     return false;
   }
@@ -119,7 +117,7 @@ async function walkDir(baseDir: string, currentDir: string, files: RepoFile[]): 
       continue;
     }
 
-    if (!isAllowedFile(entry.name)) {
+    if (!entry.isFile() || !isAllowedFile(entry.name)) {
       continue;
     }
 

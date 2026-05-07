@@ -1,42 +1,27 @@
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  background: #f6f8fa;
-}
-
-main {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 24px;
-}
-
-input,
-textarea {
-  width: 100%;
-  margin-top: 8px;
-  margin-bottom: 8px;
-  padding: 8px;
-  box-sizing: border-box;
-}
-
-button {
-  padding: 8px 14px;
-}
-
-.turn {
-  border: 1px solid #d0d7de;
-  background: #ffffff;
-  border-radius: 10px;
-  padding: 12px;
-  margin-top: 16px;
-}
-
-.answer-text {
-  white-space: pre-wrap;
-  line-height: 1.5;
-  margin-bottom: 8px;
-}
-
-.changed-stance {
-  color: #8250df;
-}
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; color: #182b3c; background: #f4f6f9; }
+main { max-width: 1120px; margin: auto; padding: 52px 28px 28px; }
+header { padding: 12px 0 30px; }
+.eyebrow,.step { font-size: 11px; letter-spacing: .14em; color: #5268ac; font-weight: 700; }
+h1 { font-size: clamp(34px,5vw,56px); line-height: 1.08; letter-spacing: -.04em; margin: 20px 0; }
+header>p { max-width: 650px; color: #526575; line-height: 1.7; }
+.feature-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
+.feature-row span { border: 1px solid #dce2ed; padding: 7px 12px; border-radius: 20px; background: white; color: #405579; font-size: 12px; }
+.import-panel,.chat-panel { background: white; padding: 28px; border: 1px solid #dce2ed; border-radius: 12px; }
+h2 { font-size: 21px; margin: 0 0 22px; }
+label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+.input-row { display: flex; gap: 12px; }
+input,textarea { width: 100%; min-width: 0; padding: 13px; border: 1px solid #bcc8d7; border-radius: 6px; background: #fafbfd; font: inherit; }
+textarea { margin-bottom: 12px; resize: vertical; }
+button { padding: 13px 18px; border: 0; border-radius: 6px; background: #344f9c; color: white; font-weight: 600; cursor: pointer; white-space: nowrap; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible,input:focus-visible,textarea:focus-visible { outline: 3px solid #788de5; outline-offset: 3px; }
+.hint { color: #5f7080; font-size: 13px; line-height: 1.6; }
+.empty-state { padding: 32px 0; }.empty-state h2 { margin: 14px 0; }
+.question-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+.question-grid p { background: #e9edf4; border-radius: 7px; padding: 18px; margin: 0; font-size: 14px; line-height: 1.6; }
+.chat-panel { margin-top: 24px; }.error { background: #fce9e9; padding: 14px; color: #8c2929; border-radius: 6px; overflow-wrap: anywhere; }
+.turn { border-top: 1px solid #dce2ed; padding-top: 14px; margin-top: 22px; overflow-wrap: anywhere; }
+.answer-text { white-space: pre-wrap; line-height: 1.6; margin-bottom: 12px; }.changed-stance { color: #7252ac; }
+footer { color: #677789; font-size: 12px; margin-top: 20px; }
+@media(max-width:650px) { main { padding: 26px 18px; }.input-row { flex-direction: column; }.question-grid { grid-template-columns: 1fr; }.import-panel,.chat-panel { padding: 20px; } }
