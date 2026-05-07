@@ -5,7 +5,6 @@
  */
 import { execFileSync, execSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { chdir, cwd as processCwd } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -31,40 +30,19 @@ function withBinsOnPath(extraBindirs) {
 }
 
 /**
- * Resolve a concrete file inside an installed package (works with npm hoisting).
- * @param {string} specifier e.g. "typescript/lib/tsc.js"
+ * Locate a tool file in the workspace that declares the package, falling back to the
+ * hoisted root copy. Root-first lookup picked the wrong major when workspaces disagree
+ * (vitest's Vite 6 is hoisted to the root while the client declares Vite 8).
+ * @param {"server" | "client"} workspace
+ * @param {string} pkg
+ * @param {...string} segments
  */
-function resolvePackageEntry(specifier) {
-  /** @type {string[]} */
-  const hosts = [
-    path.join(repoRoot, "package.json"),
-    path.join(repoRoot, "server", "package.json"),
-    path.join(repoRoot, "client", "package.json"),
-  ];
-  for (const pj of hosts) {
-    if (!existsSync(pj)) continue;
-    try {
-      const req = createRequire(pj);
-      const resolved = req.resolve(specifier);
-      if (resolved && existsSync(resolved)) return resolved;
-    } catch {
-      /* try next host */
-    }
+function locateTool(workspace, pkg, ...segments) {
+  for (const base of [path.join(repoRoot, workspace), repoRoot]) {
+    const file = path.join(base, "node_modules", pkg, ...segments);
+    if (existsSync(file)) return file;
   }
   return null;
-}
-
-/**
- * Locate `node_modules/pkg/...segments` (flat hoist layout typical of npm workspaces).
- */
-function lookupHoistedFile(pkg, ...segments) {
-  const tries = [
-    path.join(repoRoot, "node_modules", pkg, ...segments),
-    path.join(repoRoot, "server", "node_modules", pkg, ...segments),
-    path.join(repoRoot, "client", "node_modules", pkg, ...segments),
-  ];
-  const hit = tries.find(existsSync) ?? null;
-  return { hit, tries };
 }
 
 /** Run `node <resolvedJs> ...args` (must use execFileSync — execSync does not accept argv arrays). */
@@ -99,8 +77,7 @@ try {
   }
 
   log("▶ typescript (server)");
-  const tscJs =
-    resolvePackageEntry("typescript/lib/tsc.js") ?? lookupHoistedFile("typescript", "lib", "tsc.js").hit;
+  const tscJs = locateTool("server", "typescript", "lib", "tsc.js");
   if (tscJs) {
     runNodeJsTool(tscJs, ["-p", tsConfig], {
       cwd: repoRoot,
@@ -127,7 +104,7 @@ try {
   /** Vite 6+ root is positional; see `vite build --help`. */
   const viteArgs = ["build", "--config", "vite.config.ts", "--outDir", "dist", "."];
 
-  const viteJs = resolvePackageEntry("vite/bin/vite.js") ?? lookupHoistedFile("vite", "bin", "vite.js").hit;
+  const viteJs = locateTool("client", "vite", "bin", "vite.js");
   if (viteJs) {
     runNodeJsTool(viteJs, viteArgs, { cwd: clientDir, stdio: "inherit", env: pathEnv });
   } else {
