@@ -1,17 +1,14 @@
 import { env } from "../config/env.js";
 import type { RetrievedChunk } from "./retrieval.js";
 import { isBedrockConfigured, synthesizeWithBedrock } from "./bedrockSynthesizer.js";
+import { buildSynthesisPrompt } from "./synthesisPrompt.js";
 
-function buildContext(chunks: RetrievedChunk[]): string {
-  return chunks
-    .slice(0, 6)
-    .map(
-      (chunk, idx) =>
-        `[${idx + 1}] ${chunk.filePath}:${chunk.startLine}-${chunk.endLine}\n${chunk.content.slice(0, 700)}`
-    )
-    .join("\n\n");
-}
+const OPENAI_TIMEOUT_MS = 45_000;
 
+/**
+ * Returns a model-written answer, or undefined so the caller falls back to the
+ * deterministic narrative. Bedrock is tried first when fully configured, then OpenAI.
+ */
 export async function synthesizeWithAi(
   question: string,
   chunks: RetrievedChunk[],
@@ -21,7 +18,6 @@ export async function synthesizeWithAi(
     return undefined;
   }
 
-  // Prefer Bedrock when fully configured (e.g. Claude via AWS).
   if (isBedrockConfigured()) {
     const bedrockAnswer = await synthesizeWithBedrock(question, chunks, structureSummary);
     if (bedrockAnswer) {
@@ -33,38 +29,7 @@ export async function synthesizeWithAi(
     return undefined;
   }
 
-  const body = {
-    model: env.openAiModel,
-    temperature: env.openAiTemperature,
-    messages: [
-      {
-        role: "system",
-        content:
-          [
-            "You are a senior code investigator.",
-            "Use ONLY the provided snippets as evidence.",
-            "Prefer describing business/domain purpose, runtime flow, and architecture from README/package/entry files.",
-            "Do NOT frame config files (tsconfig/eslint/prettier) as repository purpose unless user explicitly asks about config.",
-            "If evidence is weak, say that clearly."
-          ].join(" ")
-      },
-      {
-        role: "user",
-        content: [
-          `Question: ${question}`,
-          structureSummary ? `Repository structure context:\n${structureSummary}` : "",
-          "Evidence snippets (with file and lines):",
-          buildContext(chunks),
-          "Respond with three sections exactly:",
-          "1) Direct answer",
-          "2) Architecture/behavior notes",
-          "3) Caveats",
-          "Keep the answer human and specific. Mention 2-4 evidence-backed points."
-        ].join("\n\n")
-      }
-    ]
-  };
-
+  const prompt = buildSynthesisPrompt(question, chunks, structureSummary);
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -72,7 +37,15 @@ export async function synthesizeWithAi(
         "Content-Type": "application/json",
         Authorization: `Bearer ${env.openAiApiKey}`
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        model: env.openAiModel,
+        temperature: env.openAiTemperature,
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user }
+        ]
+      }),
+      signal: AbortSignal.timeout(OPENAI_TIMEOUT_MS)
     });
     if (!response.ok) {
       return undefined;
@@ -82,6 +55,7 @@ export async function synthesizeWithAi(
     };
     return data.choices?.[0]?.message?.content?.trim() || undefined;
   } catch {
+    // Network failures and timeouts fall back to the deterministic answer.
     return undefined;
   }
 }

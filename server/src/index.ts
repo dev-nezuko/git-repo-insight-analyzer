@@ -3,13 +3,10 @@ import { existsSync } from "node:fs";
 import { env } from "./config/env.js";
 import { connectMongo } from "./db/mongo.js";
 import { createApp } from "./app.js";
+import { isBedrockConfigured } from "./services/bedrockSynthesizer.js";
 
 async function bootstrap(): Promise<void> {
-  const bedrockReady =
-    env.awsAccessKeyId &&
-    env.awsSecretAccessKey &&
-    env.awsRegion &&
-    env.awsBedrockModelId;
+  const bedrockReady = isBedrockConfigured();
 
   const clientDist = path.resolve(process.cwd(), "client", "dist");
   const webRoot = existsSync(path.join(clientDist, "index.html")) ? clientDist : undefined;

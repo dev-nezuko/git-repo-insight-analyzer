@@ -4,16 +4,7 @@ import {
 } from "@aws-sdk/client-bedrock-runtime";
 import { env } from "../config/env.js";
 import type { RetrievedChunk } from "./retrieval.js";
-
-function buildEvidenceBlock(chunks: RetrievedChunk[]): string {
-  return chunks
-    .slice(0, 6)
-    .map(
-      (chunk, idx) =>
-        `[${idx + 1}] ${chunk.filePath}:${chunk.startLine}-${chunk.endLine}\n${chunk.content.slice(0, 700)}`
-    )
-    .join("\n\n");
-}
+import { buildSynthesisPrompt } from "./synthesisPrompt.js";
 
 function extractText(output: unknown): string | undefined {
   if (!output || typeof output !== "object") {
@@ -34,6 +25,9 @@ function extractText(output: unknown): string | undefined {
   return joined || undefined;
 }
 
+const BEDROCK_TIMEOUT_MS = 45_000;
+let client: BedrockRuntimeClient | undefined;
+
 export function isBedrockConfigured(): boolean {
   return Boolean(
     env.awsAccessKeyId &&
@@ -52,29 +46,9 @@ export async function synthesizeWithBedrock(
     return undefined;
   }
 
-  const systemPrompt = [
-    "You are a senior code investigator.",
-    "Use ONLY the provided snippets as evidence.",
-    "Prefer describing business/domain purpose, runtime flow, and architecture from README/package/entry files.",
-    "Do NOT frame config files (tsconfig/eslint/prettier) as repository purpose unless user explicitly asks about config.",
-    "If evidence is weak, say that clearly."
-  ].join(" ");
+  const prompt = buildSynthesisPrompt(question, chunks, structureSummary);
 
-  const userPrompt = [
-    `Question: ${question}`,
-    structureSummary ? `Repository structure context:\n${structureSummary}` : "",
-    "Evidence snippets (with file and lines):",
-    buildEvidenceBlock(chunks),
-    "Respond with three sections exactly:",
-    "1) Direct answer",
-    "2) Architecture/behavior notes",
-    "3) Caveats",
-    "Keep the answer human and specific. Mention 2-4 evidence-backed points."
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
-  const client = new BedrockRuntimeClient({
+  client ??= new BedrockRuntimeClient({
     region: env.awsRegion,
     credentials: {
       accessKeyId: env.awsAccessKeyId!,
@@ -86,18 +60,19 @@ export async function synthesizeWithBedrock(
     const response = await client.send(
       new ConverseCommand({
         modelId: env.awsBedrockModelId!,
-        system: [{ text: systemPrompt }],
+        system: [{ text: prompt.system }],
         messages: [
           {
             role: "user",
-            content: [{ text: userPrompt }]
+            content: [{ text: prompt.user }]
           }
         ],
         inferenceConfig: {
           maxTokens: 4096,
           temperature: env.openAiTemperature
         }
-      })
+      }),
+      { abortSignal: AbortSignal.timeout(BEDROCK_TIMEOUT_MS) }
     );
     return extractText(response)?.trim();
   } catch {
