@@ -44,7 +44,7 @@ const schema = z.object({
       .superRefine((uri, ctx) => {
         if (!uri.startsWith("mongodb://") && !uri.startsWith("mongodb+srv://")) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message:
               "MONGODB_URI must start with mongodb:// or mongodb+srv:// (e.g. full Atlas URI from Database → Connect → Drivers)."
           });
@@ -56,7 +56,7 @@ const schema = z.object({
           (/^\d+$/.test(srvHost) || (srvHost.length <= 3 && !srvHost.includes(".")))
         ) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message:
               `MONGODB_URI SRV hostname looks invalid (${JSON.stringify(srvHost)}). In Render → Environment, set the full Atlas connection string whose host resembles cluster0.xxxxx.mongodb.net, not a placeholder or partial value. querySrv ENOTFOUND _mongodb._tcp.* usually means the host segment after @ was wrong.`
           });
@@ -65,7 +65,7 @@ const schema = z.object({
   ),
   GITHUB_API_URL: z.preprocess(
     emptyToUndefined,
-    z.string().url().default("https://api.github.com").transform((url) => url.replace(/\/+$/, ""))
+    z.url().default("https://api.github.com").transform((url) => url.replace(/\/+$/, ""))
   ),
   CORS_ORIGINS: z.preprocess(
     emptyToUndefined,
