@@ -1,20 +1,11 @@
 import mongoose from "mongoose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import { ChunkModel } from "../src/models/Chunk.js";
 import { runAudit } from "../src/services/auditor.js";
+import { connectTestDb, dropTestDb } from "./helpers/testDb.js";
 
-let mongo: MongoMemoryServer;
-
-beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
-  await mongoose.connect(mongo.getUri());
-});
-
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongo.stop();
-});
+beforeAll(connectTestDb);
+afterAll(dropTestDb);
 
 describe("auditor citation checks", () => {
   it("flags hallucination when citation chunk does not exist", async () => {
