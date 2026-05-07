@@ -1,0 +1,43 @@
+# docker compose up --build          -> app on http://localhost:4000 with its own MongoDB
+# docker compose run --rm test       -> test suite against the same MongoDB
+services:
+  mongo:
+    image: mongo:8.2
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/codebase-investigator
+      # Optional providers; leave unset for deterministic answers.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_BEDROCK_MODEL_ID: ${AWS_BEDROCK_MODEL_ID:-}
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  test:
+    build:
+      context: .
+      target: build
+    profiles: ["test"]
+    command: ["sh", "-c", "npm run lint && npm test"]
+    environment:
+      MONGODB_TEST_URI: mongodb://mongo:27017/codebase-investigator-test
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo-data:

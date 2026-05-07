@@ -1,9 +1,9 @@
 {
-  "name": "agents-anywhere-investigator",
+  "name": "codebase-investigator",
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": "^22.12.0"
   },
   "workspaces": [
     "server",
