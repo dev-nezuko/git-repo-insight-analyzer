@@ -1,0 +1,27 @@
+# dependencies and local environments
+node_modules/
+project_venv/
+
+# secrets: keep only the documented examples
+.env
+.env.*
+!.env.example
+
+# build output
+/dist
+client/dist/
+server/dist/
+# older committed Vite build, superseded by client/dist
+/public/
+
+# runtime data, caches, logs
+data/repos
+server/data/repos
+tmp/
+coverage/
+*.log
+.vite/
+*.tsbuildinfo
+
+.DS_Store
+.github/
