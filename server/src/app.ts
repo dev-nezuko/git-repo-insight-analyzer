@@ -1,8 +1,11 @@
 import path from "node:path";
 import cors from "cors";
 import express from "express";
+import mongoose from "mongoose";
+import { ZodError } from "zod";
 import { env } from "./config/env.js";
 import { connectMongo } from "./db/mongo.js";
+import { HttpError } from "./httpError.js";
 import { chatRouter } from "./routes/chat.js";
 import { reposRouter } from "./routes/repos.js";
 
@@ -52,8 +55,30 @@ export function createApp(webRootAbsolute?: string): express.Express {
   }
 
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    const message = error instanceof Error ? error.message : "Unexpected server error";
-    res.status(400).json({ message });
+    if (error instanceof HttpError) {
+      res.status(error.status).json({ message: error.message });
+      return;
+    }
+    if (error instanceof ZodError) {
+      const detail = error.issues.map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`).join("; ");
+      res.status(400).json({ message: `Invalid request. ${detail}` });
+      return;
+    }
+    if (error instanceof mongoose.Error.CastError) {
+      res.status(400).json({ message: `Invalid ${error.path}.` });
+      return;
+    }
+    if (error instanceof mongoose.Error.ValidationError) {
+      res.status(400).json({ message: `Invalid ${Object.keys(error.errors).join(", ")}.` });
+      return;
+    }
+    if (error instanceof SyntaxError && "body" in error) {
+      res.status(400).json({ message: "Request body is not valid JSON." });
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.error(error);
+    res.status(500).json({ message: "Unexpected server error." });
   });
 
   return app;

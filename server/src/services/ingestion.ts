@@ -1,33 +1,20 @@
-import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
-import axios from "axios";
-import AdmZip from "adm-zip";
 import { Types } from "mongoose";
+import { env } from "../config/env.js";
+import { HttpError } from "../httpError.js";
 import { RepoModel } from "../models/Repo.js";
 import { ChunkModel } from "../models/Chunk.js";
 import { RepoFileModel } from "../models/RepoFile.js";
-import { collectTextFiles } from "../utils/fileWalker.js";
 import { chunkFile } from "../utils/chunker.js";
-import { parseGithubUrl } from "../utils/github.js";
+import { parseGithubUrl, type GithubRepoRef } from "../utils/github.js";
+import { ArchiveLimitError, readRepoArchive } from "./archive.js";
+import { downloadArchive } from "./download.js";
 
-function getDataRoot(): string {
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    return path.join(os.tmpdir(), "codebase-investigator-repos");
-  }
-  return path.resolve(process.cwd(), "data", "repos");
-}
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+const MAX_CONCURRENT_IMPORTS = 2;
 
-const DATA_ROOT = getDataRoot();
-
-async function ensureDir(dirPath: string): Promise<void> {
-  await fs.mkdir(dirPath, { recursive: true });
-}
-
-function pickExtractRoot(entries: string[]): string {
-  const first = entries[0] ?? "";
-  return first.split("/")[0] ?? "";
-}
+/** Imports hold a whole archive in memory, so only a couple may run at once per process. */
+const activeImports = new Set<string>();
 
 function isEntryCandidate(filePath: string): boolean {
   const lower = filePath.toLowerCase();
@@ -56,32 +43,44 @@ function isConfigFile(filePath: string): boolean {
 
 export async function importRepository(githubUrl: string): Promise<{ repoId: string; fileCount: number; chunkCount: number }> {
   const parsed = parseGithubUrl(githubUrl);
-  const existing = await RepoModel.findOne({ githubUrl });
-  const repo = existing ?? new RepoModel({ githubUrl, owner: parsed.owner, name: parsed.repo });
+  if (activeImports.has(parsed.canonicalUrl)) {
+    throw new HttpError(409, "This repository is already being imported.");
+  }
+  if (activeImports.size >= MAX_CONCURRENT_IMPORTS) {
+    throw new HttpError(429, "Too many imports are running. Try again shortly.");
+  }
+  activeImports.add(parsed.canonicalUrl);
+  try {
+    return await indexRepository(parsed);
+  } finally {
+    activeImports.delete(parsed.canonicalUrl);
+  }
+}
+
+async function indexRepository(
+  parsed: GithubRepoRef
+): Promise<{ repoId: string; fileCount: number; chunkCount: number }> {
+  const existing = await RepoModel.findOne({ githubUrl: parsed.canonicalUrl });
+  const repo = existing ?? new RepoModel({ githubUrl: parsed.canonicalUrl, owner: parsed.owner, name: parsed.repo });
   repo.status = "processing";
   repo.lastError = undefined;
   await repo.save();
 
   try {
-    const zipUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/zipball`;
-    const response = await axios.get<ArrayBuffer>(zipUrl, {
-      responseType: "arraybuffer",
-      headers: { "User-Agent": "agents-anywhere-investigator" }
+    const zipUrl = `${env.githubApiUrl}/repos/${parsed.owner}/${parsed.repo}/zipball`;
+    const archive = await downloadArchive(zipUrl, {
+      maxBytes: env.importMaxArchiveMb * 1024 * 1024,
+      timeoutMs: DOWNLOAD_TIMEOUT_MS
     });
 
-    await ensureDir(DATA_ROOT);
-    const repoDir = path.join(DATA_ROOT, String(repo._id));
-    await fs.rm(repoDir, { recursive: true, force: true });
-    await ensureDir(repoDir);
+    let files;
+    try {
+      ({ files } = readRepoArchive(archive));
+    } catch (error) {
+      if (error instanceof ArchiveLimitError) throw new HttpError(413, error.message);
+      throw error;
+    }
 
-    const zip = new AdmZip(Buffer.from(response.data));
-    zip.extractAllTo(repoDir, true);
-
-    const zipEntries = zip.getEntries().map((entry) => entry.entryName);
-    const rootFolder = pickExtractRoot(zipEntries);
-    const extractedRoot = rootFolder ? path.join(repoDir, rootFolder) : repoDir;
-
-    const files = await collectTextFiles(extractedRoot);
     await ChunkModel.deleteMany({ repoId: repo._id as Types.ObjectId });
     await RepoFileModel.deleteMany({ repoId: repo._id as Types.ObjectId });
 
@@ -89,9 +88,7 @@ export async function importRepository(githubUrl: string): Promise<{ repoId: str
       await RepoFileModel.insertMany(
         files.map((file) => {
           const ext = path.extname(file.relativePath).toLowerCase();
-          const topLevelDir = file.relativePath.includes("/") ? file.relativePath.split("/")[0] ?? file.relativePath : ".";
-          const lineCount = file.content.split("\n").length;
-          const config = isConfigFile(file.relativePath);
+          const topLevelDir = file.relativePath.includes("/") ? file.relativePath.split("/")[0] : ".";
           const source = /^src\/|^app\/|^server\/src\/|^client\/src\/|^api\/|^services\/|^controllers\/|^models\//.test(
             file.relativePath.toLowerCase()
           );
@@ -100,9 +97,9 @@ export async function importRepository(githubUrl: string): Promise<{ repoId: str
             filePath: file.relativePath,
             topLevelDir,
             extension: ext || "none",
-            lineCount,
+            lineCount: file.content.split("\n").length,
             isEntryCandidate: isEntryCandidate(file.relativePath),
-            isConfig: config,
+            isConfig: isConfigFile(file.relativePath),
             isSource: source
           };
         })
@@ -132,7 +129,7 @@ export async function importRepository(githubUrl: string): Promise<{ repoId: str
     return { repoId: String(repo._id), fileCount: files.length, chunkCount: chunks.length };
   } catch (error) {
     repo.status = "failed";
-    repo.lastError = error instanceof Error ? error.message : "Unknown ingest error";
+    repo.lastError = error instanceof HttpError ? error.message : "Import failed";
     await repo.save();
     throw error;
   }

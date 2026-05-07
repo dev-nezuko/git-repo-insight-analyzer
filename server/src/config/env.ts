@@ -63,6 +63,11 @@ const schema = z.object({
         }
       })
   ),
+  GITHUB_API_URL: z.preprocess(
+    emptyToUndefined,
+    z.string().url().default("https://api.github.com").transform((url) => url.replace(/\/+$/, ""))
+  ),
+  IMPORT_MAX_ARCHIVE_MB: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(500).default(50)),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.preprocess(emptyToUndefined, z.string().default("gpt-4o")),
   OPENAI_TEMPERATURE: z.preprocess(
@@ -92,6 +97,8 @@ const parsed = parsedResult.data;
 export const env = {
   port: parsed.PORT,
   mongoUri: parsed.MONGODB_URI,
+  githubApiUrl: parsed.GITHUB_API_URL,
+  importMaxArchiveMb: parsed.IMPORT_MAX_ARCHIVE_MB,
   openAiApiKey: parsed.OPENAI_API_KEY,
   openAiModel: parsed.OPENAI_MODEL,
   openAiTemperature: parsed.OPENAI_TEMPERATURE,
