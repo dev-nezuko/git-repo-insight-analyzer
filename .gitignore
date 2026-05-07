@@ -1,7 +1,5 @@
 node_modules
 /dist
-/deploy-static
-/public
 client/dist
 server/dist
 .DS_Store

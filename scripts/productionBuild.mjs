@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 /**
- * Unified production build used by both Vercel and Render (SKIP_WEB_SYNC=1 skips Vercel static copy).
- *
- * - Resolves compilers via Node's resolver + lib/*.js paths (avoid bin/shim edge cases).
- * - Falls back to `npx --no-install …` with `node_modules/.bin` on PATH.
+ * Production build: TypeScript server → `server/dist`, Vite client → `client/dist`
+ * for a unified Node server (Render, Docker, VPS). No static export/sync step.
  */
 import { execFileSync, execSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { chdir, cwd as processCwd } from "node:process";
@@ -17,14 +15,14 @@ const repoRoot = path.resolve(scriptsDir, "..");
 
 /** @param {string} msg @param {string} [detail] */
 function panic(msg, detail) {
-  console.error(`[vercelBuild] FAILED: ${msg}`);
+  console.error(`[productionBuild] FAILED: ${msg}`);
   if (detail) console.error(String(detail));
   process.exit(1);
 }
 
 /** @param {string} step */
 function log(step) {
-  console.error(`[vercelBuild] ${step}`);
+  console.error(`[productionBuild] ${step}`);
 }
 
 function withBinsOnPath(extraBindirs) {
@@ -57,7 +55,7 @@ function resolvePackageEntry(specifier) {
 }
 
 /**
- * Locate `node_modules/pkg/...segments` — flat layout only (npm default on Vercel).
+ * Locate `node_modules/pkg/...segments` (flat hoist layout typical of npm workspaces).
  */
 function lookupHoistedFile(pkg, ...segments) {
   const tries = [
@@ -126,7 +124,7 @@ try {
   }
 
   log("▶ vite (client)");
-  /** Vite 6+ has no --root flag; root is the positional arg. See `vite build --help`. */
+  /** Vite 6+ root is positional; see `vite build --help`. */
   const viteArgs = ["build", "--config", "vite.config.ts", "--outDir", "dist", "."];
 
   const viteJs = resolvePackageEntry("vite/bin/vite.js") ?? lookupHoistedFile("vite", "bin", "vite.js").hit;
@@ -144,25 +142,6 @@ try {
   const distIndex = path.join(repoRoot, "client", "dist", "index.html");
   if (!existsSync(distIndex)) {
     panic("vite did not produce client/dist/index.html", `(checked ${distIndex})`);
-  }
-
-  if (process.env.SKIP_WEB_SYNC === "1") {
-    log("SKIP_WEB_SYNC=1 → skip copying to deploy-static (Render / unified server)");
-  } else {
-    log("▶ sync static → deploy dir");
-    const syncScript = path.join(repoRoot, "scripts", "syncPublicRoot.mjs");
-    execFileSync(process.execPath, [syncScript], { cwd: repoRoot, stdio: "inherit", env: pathEnv });
-
-    const staticOut = process.env.WEB_DIST_OUT ?? "deploy-static";
-    const deployedIndex = path.join(repoRoot, staticOut, "index.html");
-    if (!existsSync(deployedIndex)) {
-      let ls = "(dir missing)";
-      const outDir = path.join(repoRoot, staticOut);
-      if (existsSync(outDir)) {
-        ls = `contents: ${readdirSync(outDir).join(", ") || "(empty)"}`;
-      }
-      panic(`missing ${staticOut}/index.html after sync`, `${ls}`);
-    }
   }
 
   log("done");

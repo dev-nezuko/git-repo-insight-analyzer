@@ -1,7 +1,4 @@
-/**
- * Same-origin on Vercel (prod): paths like `/api/...`.
- * Override with VITE_API_URL when API is hosted on another domain.
- */
+/** Production (same-origin): paths like `/api/...`. Use VITE_API_URL when the API is on another domain. */
 export function apiBase(): string {
   const raw = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
   if (raw) {

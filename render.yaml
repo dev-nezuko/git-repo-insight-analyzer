@@ -6,8 +6,8 @@ services:
     runtime: node
     plan: free
     region: oregon
-    # Inline build avoids "Missing script: build:render" if package.json on an old commit.
-    buildCommand: npm install --include=dev && node scripts/renderBuild.mjs
+    # Explicit build keeps Blueprint working even without a npm "build:render" script name.
+    buildCommand: npm install --include=dev && node scripts/productionBuild.mjs
     startCommand: node server/dist/index.js
     healthCheckPath: /health
     envVars:
