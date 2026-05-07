@@ -7,6 +7,7 @@ import { ChunkModel } from "../models/Chunk.js";
 import { RepoFileModel } from "../models/RepoFile.js";
 import { chunkFile } from "../utils/chunker.js";
 import { parseGithubUrl, type GithubRepoRef } from "../utils/github.js";
+import { isEntryCandidate, isToolingConfig } from "../utils/repoPaths.js";
 import { ArchiveLimitError, readRepoArchive } from "./archive.js";
 import { downloadArchive } from "./download.js";
 
@@ -15,31 +16,6 @@ const MAX_CONCURRENT_IMPORTS = 2;
 
 /** Imports hold a whole archive in memory, so only a couple may run at once per process. */
 const activeImports = new Set<string>();
-
-function isEntryCandidate(filePath: string): boolean {
-  const lower = filePath.toLowerCase();
-  const base = path.basename(lower);
-  return (
-    base === "readme.md" ||
-    base === "package.json" ||
-    base === "angular.json" ||
-    /(^|\/)(main|index|app)\.(ts|tsx|js|jsx|mjs|cjs)$/.test(lower) ||
-    lower.endsWith("vite.config.ts") ||
-    lower.endsWith("next.config.js")
-  );
-}
-
-function isConfigFile(filePath: string): boolean {
-  const lower = filePath.toLowerCase();
-  const base = path.basename(lower);
-  return (
-    base.startsWith("tsconfig") ||
-    base.includes("eslint") ||
-    base.includes("prettier") ||
-    lower.endsWith(".config.ts") ||
-    lower.endsWith(".config.js")
-  );
-}
 
 export async function importRepository(githubUrl: string): Promise<{ repoId: string; fileCount: number; chunkCount: number }> {
   const parsed = parseGithubUrl(githubUrl);
@@ -99,7 +75,7 @@ async function indexRepository(
             extension: ext || "none",
             lineCount: file.content.split("\n").length,
             isEntryCandidate: isEntryCandidate(file.relativePath),
-            isConfig: isConfigFile(file.relativePath),
+            isConfig: isToolingConfig(file.relativePath),
             isSource: source
           };
         })

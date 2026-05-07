@@ -1,6 +1,14 @@
 import path from "node:path";
 import { Types } from "mongoose";
 import { ChunkModel } from "../models/Chunk.js";
+import {
+  isAuthQuestion,
+  isBehaviorQuestion,
+  isDeadCodeQuestion,
+  isOverviewQuestion,
+  isServiceWalkthroughQuestion
+} from "../utils/questionIntent.js";
+import { isToolingConfig } from "../utils/repoPaths.js";
 import { scoreOverlap } from "../utils/text.js";
 
 export interface RetrievedChunk {
@@ -30,36 +38,6 @@ function isNoiseFile(filePath: string): boolean {
     lower.includes("/dist/") ||
     lower.includes("/build/") ||
     lower.includes(".min.js")
-  );
-}
-
-function isOverviewQuestion(question: string): boolean {
-  return /what is this repo about|what.*repository.*about|top[\s-]?level|high[\s-]?level|architecture|overview/.test(
-    question.toLowerCase()
-  );
-}
-
-function isBehaviorQuestion(question: string): boolean {
-  const q = question.toLowerCase();
-  return /how|why|flow|walk|through|work|works|manage|handling|process|logic|change|improve|fix|explain|describe|risk|flag|feels|wrong|off|tell me/.test(
-    q
-  );
-}
-
-function isDeadCodeQuestion(question: string): boolean {
-  return /dead code|unused code|never used|safe to delete|remove.*code|delete.*code|any.*unused/.test(
-    question.toLowerCase()
-  );
-}
-
-function isServiceWalkthroughQuestion(question: string): boolean {
-  const q = question.toLowerCase();
-  return /walk me through|what .*service|this service|service does|skip the obvious/.test(q);
-}
-
-function isAuthQuestion(question: string): boolean {
-  return /auth|authenticate|authentication|login|signup|sign[\s-]?up|register|token|jwt|session|password/.test(
-    question.toLowerCase()
   );
 }
 
@@ -109,17 +87,6 @@ function authUnlikelyComponentPath(filePath: string): boolean {
   return true;
 }
 
-function isConfigHeavyFile(filePath: string): boolean {
-  const base = path.basename(filePath.toLowerCase());
-  return (
-    base.startsWith("tsconfig") ||
-    base.endsWith(".config.js") ||
-    base.endsWith(".config.ts") ||
-    base.includes("eslint") ||
-    base.includes("prettier")
-  );
-}
-
 function overviewPathPriority(filePath: string): number {
   const p = filePath.toLowerCase();
   const base = path.basename(p);
@@ -142,7 +109,7 @@ function overviewPathPriority(filePath: string): number {
   if (/^docs\/|\/docs\//.test(p)) {
     return 2.2;
   }
-  if (isConfigHeavyFile(p)) {
+  if (isToolingConfig(p)) {
     return -3;
   }
   if (base.endsWith(".json") && base !== "package.json") {
@@ -174,16 +141,16 @@ function pathWeight(question: string, filePath: string): number {
       weight += 1.5;
     }
 
-    if (isConfigHeavyFile(p)) {
+    if (isToolingConfig(p)) {
       weight *= 0.04;
     } else if (base.endsWith(".json") && base !== "package.json") {
       weight *= 0.15;
     }
   }
-  if (/auth|signup|login/.test(q) && /auth|user|session|token|middleware/.test(p)) {
+  if (isAuthQuestion(q) && /auth|user|session|token|middleware/.test(p)) {
     weight += 0.4;
   }
-  if (/dead code|unused|safe to delete/.test(q) && /src\/|app\/|server\/|client\//.test(p)) {
+  if (isDeadCodeQuestion(q) && /src\/|app\/|server\/|client\//.test(p)) {
     weight += 0.3;
   }
   return weight;
@@ -192,7 +159,7 @@ function pathWeight(question: string, filePath: string): number {
 function isSourceLikePath(filePath: string): boolean {
   const p = filePath.toLowerCase();
   const base = path.basename(p);
-  if (isConfigHeavyFile(p) || base.endsWith(".json") || base.endsWith(".md")) {
+  if (isToolingConfig(p) || base.endsWith(".json") || base.endsWith(".md")) {
     return false;
   }
   const ext = path.extname(base);
@@ -418,7 +385,7 @@ export async function retrieveRelevantChunks(repoId: string, question: string, t
           score: baseScore + overlap * 0.5
         };
       })
-      .filter((item) => item.score > 0.3 && !isConfigHeavyFile(item.filePath))
+      .filter((item) => item.score > 0.3 && !isToolingConfig(item.filePath))
       .sort((a, b) => b.score - a.score);
 
     const diversified = diversifyByFile(overviewRanked, topK).filter((c) => c.startLine <= 220);

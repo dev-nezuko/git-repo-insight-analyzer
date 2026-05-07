@@ -1,5 +1,11 @@
 import type { AuditIssue, AuditResult, Citation } from "../types/investigator.js";
 import { ChunkModel } from "../models/Chunk.js";
+import {
+  isAuthQuestion,
+  isBehaviorQuestion,
+  isDeadCodeQuestion,
+  isServiceWalkthroughQuestion
+} from "../utils/questionIntent.js";
 
 function quoteOverlapCheck(answer: string, snippets: string[]): boolean {
   const normalizedAnswer = answer.toLowerCase();
@@ -77,8 +83,7 @@ export async function runAudit(
     });
   }
 
-  const lowerQuestion = question.toLowerCase();
-  const behaviorQuestion = /how|why|flow|work|works|manage|handling|process|logic/.test(lowerQuestion);
+  const behaviorQuestion = isBehaviorQuestion(question);
   const lowSignalForBehavior = citedPaths.filter((p) => {
     const lower = p.toLowerCase();
     return (
@@ -98,10 +103,7 @@ export async function runAudit(
     });
   }
 
-  const signupAuthQuestion = /signup|sign-up|sign up|register|authentication|credential|logout|jwt|oauth|password\b/.test(
-    lowerQuestion
-  );
-  if (signupAuthQuestion && citations.length > 0) {
+  if (isAuthQuestion(question) && citations.length > 0) {
     const pathHint = citedPaths.some((p) =>
       /auth|login|signup|register|account|user|session|credential|jwt|middleware|guard|interceptor|routes?\//i.test(p)
     );
@@ -117,8 +119,7 @@ export async function runAudit(
     }
   }
 
-  const deadQuestion = /dead code|safe to delete|unused code/.test(lowerQuestion);
-  if (deadQuestion && citations.length > 0) {
+  if (isDeadCodeQuestion(question) && citations.length > 0) {
     const hasDeletionSignal = snippets.some((s) =>
       /\b(export|function|class|deprecated|unused|TODO|FIXME|unreachable)\b/i.test(s)
     );
@@ -131,8 +132,7 @@ export async function runAudit(
     }
   }
 
-  const serviceQuestion = /service does|this service|skip the obvious|walk me through/.test(lowerQuestion);
-  if (serviceQuestion && citations.length > 0) {
+  if (isServiceWalkthroughQuestion(question) && citations.length > 0) {
     const serviceCitation = citedPaths.some(
       (p) => /\.service\.(ts|js)$/i.test(p) || /\/services\//i.test(p)
     );

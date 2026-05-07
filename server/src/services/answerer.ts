@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { Citation, Claim } from "../types/investigator.js";
 import type { RetrievedChunk } from "./retrieval.js";
+import {
+  isAuthQuestion,
+  isBehaviorQuestion,
+  isDeadCodeQuestion,
+  isOverviewQuestion,
+  isServiceWalkthroughQuestion
+} from "../utils/questionIntent.js";
+import { isToolingConfig } from "../utils/repoPaths.js";
 import { topicKeyFromText } from "../utils/text.js";
 import { synthesizeWithAi } from "./aiSynthesizer.js";
 
@@ -25,51 +33,22 @@ function buildCitation(chunk: RetrievedChunk): Citation {
 }
 
 function inferQuestionIntent(question: string): string {
-  const q = question.toLowerCase();
-  if (q.includes("dead code") || q.includes("safe to delete") || q.includes("unused")) {
+  if (isDeadCodeQuestion(question)) {
     return "You're checking for unused code and deletion safety.";
   }
-  if (q.includes("auth") || q.includes("signup") || q.includes("login")) {
+  if (isAuthQuestion(question)) {
     return "You're asking how the authentication flow works and whether it's sound.";
   }
-  if (q.includes("architecture") || q.includes("top level") || q.includes("high level") || q.includes("repo is about")) {
+  if (isOverviewQuestion(question)) {
     return "You're asking for a high-level explanation of what this repository does and how it is structured.";
   }
-  if (q.includes("async")) {
+  if (/\basync\b/i.test(question)) {
     return "You're validating whether async behavior is actually needed.";
   }
-  if (q.includes("error")) {
+  if (/\berrors?\b/i.test(question)) {
     return "You're evaluating how errors are handled and where resilience can improve.";
   }
   return "You're asking for a focused investigation of how this part of the code behaves.";
-}
-
-function detectArchitectureQuestion(question: string): boolean {
-  return /architecture|top[\s-]?level|high[\s-]?level|repo.*about|overview/.test(question.toLowerCase());
-}
-
-function isDeadCodeQuestionText(question: string): boolean {
-  return /dead code|unused code|safe to delete|never used/.test(question.toLowerCase());
-}
-
-function isServiceWalkthroughText(question: string): boolean {
-  return /walk me through|service does|this service|skip the obvious/.test(question.toLowerCase());
-}
-
-function isBehaviorQuestion(question: string): boolean {
-  const q = question.toLowerCase();
-  return /how|why|flow|walk|through|work|works|manage|handling|process|logic|risk|flag|tell me/.test(q);
-}
-
-function isConfigOnlyPath(filePath: string): boolean {
-  const p = filePath.toLowerCase();
-  return (
-    p.includes("tsconfig") ||
-    p.includes("eslint") ||
-    p.includes("prettier") ||
-    p.endsWith(".config.ts") ||
-    p.endsWith(".config.js")
-  );
 }
 
 function summarizeTopLevelAreas(chunks: RetrievedChunk[]): string {
@@ -95,8 +74,8 @@ function buildDeterministicNarrative(question: string, selected: RetrievedChunk[
     return `${index + 1}. ${chunk.filePath}:${chunk.startLine}-${chunk.endLine} - ${firstLine.slice(0, 140)}`;
   });
 
-  if (detectArchitectureQuestion(question)) {
-    const nonConfig = selected.filter((chunk) => !isConfigOnlyPath(chunk.filePath));
+  if (isOverviewQuestion(question)) {
+    const nonConfig = selected.filter((chunk) => !isToolingConfig(chunk.filePath));
     if (nonConfig.length === 0) {
       return [
         "Direct answer: I don't have enough high-quality architecture evidence yet.",
@@ -127,7 +106,7 @@ function buildDeterministicNarrative(question: string, selected: RetrievedChunk[
     ].join("\n");
   }
 
-  if (isDeadCodeQuestionText(question)) {
+  if (isDeadCodeQuestion(question)) {
     return [
       "Direct answer: Unused/dead code cannot be proven safely from lexical search alone.",
       "",
@@ -143,7 +122,7 @@ function buildDeterministicNarrative(question: string, selected: RetrievedChunk[
     ].join("\n");
   }
 
-  if (isServiceWalkthroughText(question)) {
+  if (isServiceWalkthroughQuestion(question)) {
     const serviceChunks = selected.filter(
       (c) => /\.service\.(ts|js)$/i.test(c.filePath) || /\/services\//i.test(c.filePath)
     );
@@ -163,7 +142,7 @@ function buildDeterministicNarrative(question: string, selected: RetrievedChunk[
 
   if (isBehaviorQuestion(question)) {
     const sourceLike = selected.filter(
-      (chunk) => !isConfigOnlyPath(chunk.filePath) && !chunk.filePath.toLowerCase().endsWith("readme.md")
+      (chunk) => !isToolingConfig(chunk.filePath) && !chunk.filePath.toLowerCase().endsWith("readme.md")
     );
     if (sourceLike.length < 2) {
       return [

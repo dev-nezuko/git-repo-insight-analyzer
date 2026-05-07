@@ -1,19 +1,6 @@
-import path from "node:path";
 import { Types } from "mongoose";
 import { RepoFileModel } from "../models/RepoFile.js";
-
-function isEntryCandidate(filePath: string): boolean {
-  const lower = filePath.toLowerCase();
-  const base = path.basename(lower);
-  return (
-    base === "readme.md" ||
-    base === "package.json" ||
-    base === "angular.json" ||
-    /(^|\/)(main|index|app)\.(ts|tsx|js|jsx|mjs|cjs)$/.test(lower) ||
-    lower.endsWith("vite.config.ts") ||
-    lower.endsWith("next.config.js")
-  );
-}
+import { isEntryCandidate } from "../utils/repoPaths.js";
 
 export interface RepoStructureContext {
   topLevelDirs: string[];

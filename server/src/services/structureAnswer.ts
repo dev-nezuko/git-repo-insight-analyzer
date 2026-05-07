@@ -3,24 +3,8 @@ import { Types } from "mongoose";
 import { ChunkModel } from "../models/Chunk.js";
 import { RepoFileModel } from "../models/RepoFile.js";
 import type { Citation, Claim } from "../types/investigator.js";
-
-function isStructureQuestion(question: string): boolean {
-  return /enumerate|list|top[\s-]?level|main entry|entry files|folder structure|directory structure/.test(
-    question.toLowerCase()
-  );
-}
-
-function isLikelyEntryFile(path: string): boolean {
-  const p = path.toLowerCase();
-  return (
-    p.endsWith("package.json") ||
-    p.endsWith("readme.md") ||
-    /(^|\/)(main|index|app)\.(ts|tsx|js|jsx|mjs|cjs)$/.test(p) ||
-    p === "angular.json" ||
-    p.endsWith("vite.config.ts") ||
-    p.endsWith("next.config.js")
-  );
-}
+import { isStructureQuestion } from "../utils/questionIntent.js";
+import { isEntryCandidate } from "../utils/repoPaths.js";
 
 export async function buildStructureAnswer(
   repoId: string,
@@ -48,7 +32,7 @@ export async function buildStructureAnswer(
   const uniquePaths = files.map((file) => String(file.filePath));
   const topLevelDirs = Array.from(new Set(files.map((file) => String(file.topLevelDir)))).slice(0, 10);
   const entryFiles = files
-    .filter((file) => Boolean(file.isEntryCandidate) || isLikelyEntryFile(String(file.filePath)))
+    .filter((file) => Boolean(file.isEntryCandidate) || isEntryCandidate(String(file.filePath)))
     .map((file) => String(file.filePath))
     .slice(0, 10);
 
