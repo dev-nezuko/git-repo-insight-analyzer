@@ -11,16 +11,13 @@ async function bootstrap(): Promise<void> {
   const clientDist = path.resolve(process.cwd(), "client", "dist");
   const webRoot = existsSync(path.join(clientDist, "index.html")) ? clientDist : undefined;
   if (webRoot) {
-    // eslint-disable-next-line no-console
     console.log(`Serving web UI from ${webRoot}`);
   }
 
   const app = createApp(webRoot);
   await new Promise<void>((resolve, reject) => {
     const server = app.listen(env.port, "0.0.0.0", () => {
-      // eslint-disable-next-line no-console
       console.log(`Server listening on 0.0.0.0:${env.port}`);
-      // eslint-disable-next-line no-console
       console.log(
         bedrockReady
           ? `LLM: AWS Bedrock (${env.awsBedrockModelId}) — falls back to OpenAI if Bedrock fails`
@@ -35,17 +32,14 @@ async function bootstrap(): Promise<void> {
 
   try {
     await connectMongo(env.mongoUri);
-    // eslint-disable-next-line no-console
     console.log("MongoDB connected");
   } catch (error) {
     // Keep serving /health and the UI; API requests retry the connection.
-    // eslint-disable-next-line no-console
     console.error(`MongoDB not reachable yet: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
 bootstrap().catch((error) => {
-  // eslint-disable-next-line no-console
   console.error(error instanceof Error ? error.stack ?? error.message : error);
   process.exit(1);
 });

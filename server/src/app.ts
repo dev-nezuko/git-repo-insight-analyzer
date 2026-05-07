@@ -79,7 +79,6 @@ export function createApp(webRootAbsolute?: string): express.Express {
       res.status(503).json({ message: "Database unavailable. Check MONGODB_URI and that MongoDB is running." });
       return;
     }
-    // eslint-disable-next-line no-console
     console.error(error);
     res.status(500).json({ message: "Unexpected server error." });
   });

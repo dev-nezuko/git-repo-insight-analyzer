@@ -90,11 +90,9 @@ const schema = z.object({
 
 const parsedResult = schema.safeParse(process.env);
 if (!parsedResult.success) {
-  // eslint-disable-next-line no-console
   console.error("[investigator-server] Invalid environment:");
   for (const iss of parsedResult.error.issues) {
     const pathKeys = iss.path.map(String).join(".");
-    // eslint-disable-next-line no-console
     console.error(`  ${pathKeys || "(root)"}: ${iss.message}`);
   }
   process.exit(1);
