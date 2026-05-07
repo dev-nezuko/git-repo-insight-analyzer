@@ -6,20 +6,23 @@ export interface CitationView {
 }
 
 export function CitationList({ citations }: { citations: CitationView[] }) {
-  if (citations.length === 0) {
-    return <p>No citations.</p>;
-  }
-
   return (
-    <div>
-      <strong>Citations</strong>
-      <ul>
-        {citations.map((citation) => (
-          <li key={citation.chunkId}>
-            {citation.filePath}:{citation.startLine}-{citation.endLine}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <section className="citations" aria-label="Citations">
+      <h4>Evidence</h4>
+      {citations.length === 0 ? (
+        <p className="subtle">No citations for this answer.</p>
+      ) : (
+        <ul>
+          {citations.map((citation) => (
+            <li key={citation.chunkId}>
+              <span className="mono">{citation.filePath}</span>
+              <span className="lines">
+                L{citation.startLine}–{citation.endLine}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
