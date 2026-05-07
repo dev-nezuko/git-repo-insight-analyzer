@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import axios from "axios";
 import AdmZip from "adm-zip";
@@ -10,7 +11,14 @@ import { collectTextFiles } from "../utils/fileWalker.js";
 import { chunkFile } from "../utils/chunker.js";
 import { parseGithubUrl } from "../utils/github.js";
 
-const DATA_ROOT = path.resolve(process.cwd(), "data", "repos");
+function getDataRoot(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join(os.tmpdir(), "codebase-investigator-repos");
+  }
+  return path.resolve(process.cwd(), "data", "repos");
+}
+
+const DATA_ROOT = getDataRoot();
 
 async function ensureDir(dirPath: string): Promise<void> {
   await fs.mkdir(dirPath, { recursive: true });

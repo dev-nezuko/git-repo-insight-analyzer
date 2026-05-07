@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
+import { apiUrl } from "../apiBase";
 import { AuditBadge } from "./AuditBadge";
 import { CitationList, type CitationView } from "./CitationList";
 
@@ -31,7 +32,7 @@ export function ChatPanel({ sessionId }: Props) {
     setLoading(true);
     const current = question;
     setQuestion("");
-    const response = await fetch(`http://localhost:4000/api/chat/${sessionId}/ask`, {
+    const response = await fetch(apiUrl(`/api/chat/${sessionId}/ask`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question: current })
@@ -56,7 +57,7 @@ export function ChatPanel({ sessionId }: Props) {
       <h2>Investigation Chat</h2>
       <textarea
         value={question}
-        onChange={(e) => setQuestion(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setQuestion(e.target.value)}
         rows={3}
         placeholder="Ask about code behavior, risk, dead code, async usage..."
       />

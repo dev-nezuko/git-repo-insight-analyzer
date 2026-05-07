@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
+import { apiUrl } from "./apiBase";
 import { ChatPanel } from "./components/ChatPanel";
 
 export default function App() {
@@ -9,7 +10,7 @@ export default function App() {
 
   const importRepo = async () => {
     setStatus("Importing repository...");
-    const response = await fetch("http://localhost:4000/api/repos/import", {
+    const response = await fetch(apiUrl("/api/repos/import"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ githubUrl })
@@ -18,7 +19,7 @@ export default function App() {
     setRepoId(payload.repoId);
     setStatus(`Indexed ${payload.fileCount} files and ${payload.chunkCount} chunks.`);
 
-    const sessionResponse = await fetch("http://localhost:4000/api/chat/sessions", {
+    const sessionResponse = await fetch(apiUrl("/api/chat/sessions"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ repoId: payload.repoId })
@@ -33,7 +34,7 @@ export default function App() {
       <p>Paste a public GitHub repository URL and ask code questions with citations + independent audit.</p>
       <input
         value={githubUrl}
-        onChange={(e) => setGithubUrl(e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => setGithubUrl(e.target.value)}
         placeholder="https://github.com/owner/repo"
       />
       <button onClick={importRepo}>Import Repo</button>

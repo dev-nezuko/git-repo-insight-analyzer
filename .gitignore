@@ -1,7 +1,12 @@
 node_modules
-dist
+/dist
+/deploy-static
+/public
+client/dist
+server/dist
 .DS_Store
 .env
+client/.env
 coverage
 data/repos
 server/data/repos

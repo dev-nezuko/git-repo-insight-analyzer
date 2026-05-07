@@ -1,0 +1,15 @@
+# Render Blueprint — Web Service from repo root (Root Directory: leave empty / .)
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: codebase-investigator
+    runtime: node
+    plan: free
+    region: oregon
+    # Inline build avoids "Missing script: build:render" if package.json on an old commit.
+    buildCommand: npm install --include=dev && node scripts/renderBuild.mjs
+    startCommand: node server/dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
