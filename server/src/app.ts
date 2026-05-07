@@ -12,23 +12,22 @@ import { reposRouter } from "./routes/repos.js";
 /** When `webRootAbsolute` points at `client/dist` with `index.html`, SPA + API share one origin (e.g. Render). */
 export function createApp(webRootAbsolute?: string): express.Express {
   const app = express();
-  app.use(cors());
+  app.disable("x-powered-by");
+  // The API can download archives on a caller's behalf, so only listed browser origins may call it.
+  app.use(cors({ origin: env.corsOrigins }));
 
   // Liveness only — must not wait on Mongo so platforms (e.g. Render) see an open port while Atlas allowlist is misconfigured.
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
   });
 
-  let dbReady: Promise<void> | undefined;
-  const ensureDb = (): Promise<void> => {
-    dbReady ??= connectMongo(env.mongoUri);
-    return dbReady;
-  };
-  app.use((_req, _res, next) => {
-    void ensureDb().then(() => next()).catch(next);
+  // connectMongo shares one in-flight attempt and forgets a failed one, so a database that
+  // comes up after the server does is picked up on the next request.
+  app.use("/api", (_req, _res, next) => {
+    connectMongo(env.mongoUri).then(() => next(), next);
   });
 
-  app.use(express.json({ limit: "2mb" }));
+  app.use(express.json({ limit: "64kb" }));
 
   app.use("/api/repos", reposRouter);
   app.use("/api/chat", chatRouter);
@@ -74,6 +73,10 @@ export function createApp(webRootAbsolute?: string): express.Express {
     }
     if (error instanceof SyntaxError && "body" in error) {
       res.status(400).json({ message: "Request body is not valid JSON." });
+      return;
+    }
+    if (error instanceof Error && error.name === "MongooseServerSelectionError") {
+      res.status(503).json({ message: "Database unavailable. Check MONGODB_URI and that MongoDB is running." });
       return;
     }
     // eslint-disable-next-line no-console

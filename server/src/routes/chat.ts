@@ -1,5 +1,7 @@
 import { Router } from "express";
+import { isValidObjectId } from "mongoose";
 import { z } from "zod";
+import { RepoModel } from "../models/Repo.js";
 import { SessionModel } from "../models/Session.js";
 import { TurnModel } from "../models/Turn.js";
 import { retrieveRelevantChunks } from "../services/retrieval.js";
@@ -13,18 +15,29 @@ import { getRepoStructureContext } from "../services/repoStructure.js";
 
 const startSessionSchema = z.object({
   repoId: z.string(),
-  title: z.string().optional()
+  title: z.string().max(120).optional()
 });
 
 const askSchema = z.object({
-  question: z.string().min(5)
+  question: z.string().trim().min(5).max(2000)
 });
+
+async function findSession(sessionId: string) {
+  return isValidObjectId(sessionId) ? SessionModel.findById(sessionId).lean() : null;
+}
 
 export const chatRouter = Router();
 
 chatRouter.post("/sessions", async (req, res, next) => {
   try {
     const payload = startSessionSchema.parse(req.body);
+    const repo = isValidObjectId(payload.repoId) ? await RepoModel.findById(payload.repoId).lean() : null;
+    if (!repo) {
+      return res.status(404).json({ message: "Repo not found" });
+    }
+    if (repo.status !== "ready") {
+      return res.status(409).json({ message: `Repo is ${repo.status}; import it successfully before asking questions.` });
+    }
     const session = await SessionModel.create({
       repoId: payload.repoId,
       title: payload.title ?? "Investigation Session"
@@ -38,15 +51,19 @@ chatRouter.post("/sessions", async (req, res, next) => {
 chatRouter.post("/:sessionId/ask", async (req, res, next) => {
   try {
     const payload = askSchema.parse(req.body);
-    const session = await SessionModel.findById(req.params.sessionId).lean();
+    const session = await findSession(req.params.sessionId);
     if (!session) {
       return res.status(404).json({ message: "Session not found" });
     }
 
-    const structure = await getRepoStructureContext(String(session.repoId));
-    const structuredDraft = await buildStructureAnswer(String(session.repoId), payload.question);
-    const chunks = structuredDraft ? [] : await retrieveRelevantChunks(String(session.repoId), payload.question, 8);
-    const responseDraft = structuredDraft ?? (await buildAnswer(payload.question, chunks, structure.summaryText));
+    const repoId = String(session.repoId);
+    const responseDraft =
+      (await buildStructureAnswer(repoId, payload.question)) ??
+      (await buildAnswer(
+        payload.question,
+        await retrieveRelevantChunks(repoId, payload.question, 8),
+        (await getRepoStructureContext(repoId)).summaryText
+      ));
 
     const priorTurns = await TurnModel.find({ sessionId: session._id }).lean();
     const previousClaims = priorTurns.flatMap((turn) => ((turn.claims as Claim[] | undefined) ?? []));
@@ -79,7 +96,11 @@ chatRouter.post("/:sessionId/ask", async (req, res, next) => {
 
 chatRouter.get("/:sessionId/history", async (req, res, next) => {
   try {
-    const turns = await TurnModel.find({ sessionId: req.params.sessionId })
+    const session = await findSession(req.params.sessionId);
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+    const turns = await TurnModel.find({ sessionId: session._id })
       .sort({ createdAt: 1 })
       .lean();
     return res.json({ turns });

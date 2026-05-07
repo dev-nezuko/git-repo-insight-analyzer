@@ -36,9 +36,15 @@ async function bootstrap(): Promise<void> {
     server.on("error", reject);
   });
 
-  await connectMongo(env.mongoUri);
-  // eslint-disable-next-line no-console
-  console.log("MongoDB connected");
+  try {
+    await connectMongo(env.mongoUri);
+    // eslint-disable-next-line no-console
+    console.log("MongoDB connected");
+  } catch (error) {
+    // Keep serving /health and the UI; API requests retry the connection.
+    // eslint-disable-next-line no-console
+    console.error(`MongoDB not reachable yet: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 bootstrap().catch((error) => {

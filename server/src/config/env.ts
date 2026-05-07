@@ -67,6 +67,13 @@ const schema = z.object({
     emptyToUndefined,
     z.string().url().default("https://api.github.com").transform((url) => url.replace(/\/+$/, ""))
   ),
+  CORS_ORIGINS: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .default("http://localhost:5173")
+      .transform((list) => list.split(",").map((origin) => origin.trim()).filter(Boolean))
+  ),
   IMPORT_MAX_ARCHIVE_MB: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(500).default(50)),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.preprocess(emptyToUndefined, z.string().default("gpt-4o")),
@@ -97,6 +104,7 @@ const parsed = parsedResult.data;
 export const env = {
   port: parsed.PORT,
   mongoUri: parsed.MONGODB_URI,
+  corsOrigins: parsed.CORS_ORIGINS,
   githubApiUrl: parsed.GITHUB_API_URL,
   importMaxArchiveMb: parsed.IMPORT_MAX_ARCHIVE_MB,
   openAiApiKey: parsed.OPENAI_API_KEY,
