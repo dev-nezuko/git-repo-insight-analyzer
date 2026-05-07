@@ -42,7 +42,7 @@ export function createApp(webRootAbsolute?: string): express.Express {
 
   if (webRoot !== undefined && webRoot !== "" && indexHtml !== undefined) {
     app.use(express.static(webRoot));
-    app.get("*", (req, res, next) => {
+    app.get("/{*spaPath}", (req, res, next) => {
       if (req.path.startsWith("/api")) {
         next();
         return;
