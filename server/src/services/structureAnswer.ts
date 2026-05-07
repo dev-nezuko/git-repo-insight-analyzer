@@ -79,7 +79,7 @@ export async function buildStructureAnswer(
     "- Entry files show app bootstrapping and build/runtime configuration boundaries.",
     "",
     "Caveat:",
-    "This is a structural map, not behavior tracing. Ask a feature-specific question (for example, stock updates flow) for runtime details."
+    "This is a structural map, not behavior tracing. Ask a feature-specific question (for example, how a request reaches the database) for runtime details."
   ].join("\n");
 
   const claims: Claim[] = [

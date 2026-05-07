@@ -28,6 +28,18 @@ type LeanChunk = {
   content: string;
 };
 
+function isTestPath(filePath: string): boolean {
+  return /(^|\/)(tests?|__tests__|specs?|e2e)\/|\.(test|spec|e2e)\.[cm]?[jt]sx?$/i.test(filePath);
+}
+
+/**
+ * Tests repeat the vocabulary of the code they cover, so they tie with it on word overlap.
+ * Unless the question is about tests, rank the implementation first.
+ */
+function testPenalty(question: string, filePath: string): number {
+  return isTestPath(filePath) && !/\b(tests?|specs?|testing|coverage)\b/i.test(question) ? 0.5 : 1;
+}
+
 function isNoiseFile(filePath: string): boolean {
   const lower = filePath.toLowerCase();
   return (
@@ -75,7 +87,7 @@ function authRelevantPathOrContent(filePath: string, content: string, terms: str
   return false;
 }
 
-/** Random UI chunks (e.g. stock-card) should not rank for signup/auth unless they mention auth in content or path */
+/** Unrelated UI components should not rank for signup/auth unless they mention auth in content or path */
 function authUnlikelyComponentPath(filePath: string): boolean {
   const p = filePath.toLowerCase();
   if (!/\/components\//.test(p) && !/\/pages\//.test(p)) {
@@ -288,7 +300,7 @@ function retrieveBehaviorChunks(docs: LeanChunk[], question: string, topK: numbe
         startLine: doc.startLine as number,
         endLine: doc.endLine as number,
         content,
-        score: overlap + boost
+        score: (overlap + boost) * testPenalty(question, filePath)
       };
     })
     .filter((item): item is RetrievedChunk => Boolean(item));
@@ -359,7 +371,10 @@ export async function retrieveRelevantChunks(repoId: string, question: string, t
       startLine: doc.startLine as number,
       endLine: doc.endLine as number,
       content: doc.content as string,
-      score: scoreOverlap(question, doc.content as string) * pathWeight(question, doc.filePath as string)
+      score:
+        scoreOverlap(question, doc.content as string) *
+        pathWeight(question, doc.filePath as string) *
+        testPenalty(question, doc.filePath as string)
     }))
     .filter((item) => item.score > (isOverviewQuestion(question) ? 0.01 : 0.04))
     .sort((a, b) => b.score - a.score)
